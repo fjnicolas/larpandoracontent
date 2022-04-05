@@ -12,7 +12,7 @@ fcldir  -
 # With "product  version" table below, we now define depdendencies
 # Add the dependent product and version
 product		version
-eigen		v3_3_9a
+eigen		v3_4_0
 pandora		v03_16_00f
 libtorch	v1_6_0d	-	optional
 cetbuildtools	v8_19_02	-	only_for_build
