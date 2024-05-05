@@ -9,6 +9,7 @@
 #include "Pandora/AlgorithmHeaders.h"
 
 #include "larpandoracontent/LArHelpers/LArClusterHelper.h"
+#include "larpandoracontent/LArHelpers/LArGeometryHelper.h"
 
 #include "larpandoracontent/LArTwoDReco/LArClusterCreation/TrackClusterCreationAlgorithm.h"
 
@@ -22,7 +23,8 @@ TrackClusterCreationAlgorithm::TrackClusterCreationAlgorithm() :
     m_maxGapLayers(2),
     m_maxCaloHitSeparationSquared(1.3f * 1.3f),
     m_minCaloHitSeparationSquared(0.4f * 0.4f),
-    m_closeSeparationSquared(0.9f * 0.9f)
+    m_closeSeparationSquared(0.9f * 0.9f),
+    m_minMipFraction{0.f}
 {
 }
 
@@ -62,12 +64,16 @@ StatusCode TrackClusterCreationAlgorithm::FilterCaloHits(
 
     for (const CaloHit *const pCaloHit : *pCaloHitList)
     {
-        if (PandoraContentApi::IsAvailable(*this, pCaloHit))
+        if (PandoraContentApi::IsAvailable(*this, pCaloHit) && pCaloHit->GetMipEquivalentEnergy() >= m_minMipFraction)
             availableHitList.push_back(pCaloHit);
     }
 
     if (availableHitList.empty())
         return STATUS_CODE_SUCCESS;
+
+    HitType view{availableHitList.front()->GetHitType()};
+    const float ratio{LArGeometryHelper::GetWirePitchRatio(this->GetPandora(), view)};
+    const float minSeparationSquaredAdjusted{ratio * ratio * m_minCaloHitSeparationSquared};
 
     PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, selectedCaloHitList.Add(availableHitList));
 
@@ -86,7 +92,7 @@ StatusCode TrackClusterCreationAlgorithm::FilterCaloHits(
                     continue;
 
                 if ((pCaloHitI->GetMipEquivalentEnergy() < pCaloHitJ->GetMipEquivalentEnergy()) &&
-                    ((pCaloHitI->GetPositionVector() - pCaloHitJ->GetPositionVector()).GetMagnitudeSquared() < m_minCaloHitSeparationSquared))
+                    ((pCaloHitI->GetPositionVector() - pCaloHitJ->GetPositionVector()).GetMagnitudeSquared() < minSeparationSquaredAdjusted))
                 {
                     useCaloHit = false;
                     break;
@@ -112,6 +118,12 @@ StatusCode TrackClusterCreationAlgorithm::AddFilteredCaloHits(
         CaloHitList *pCaloHitList = NULL;
         PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, selectedCaloHitList.GetCaloHitsInPseudoLayer(iter->first, pCaloHitList));
 
+        if (!pCaloHitList || pCaloHitList->empty())
+            continue;
+        HitType view{pCaloHitList->front()->GetHitType()};
+        const float ratio{LArGeometryHelper::GetWirePitchRatio(this->GetPandora(), view)};
+        const float minSeparationSquaredAdjusted{ratio * ratio * m_minCaloHitSeparationSquared};
+
         CaloHitSet unavailableHits;
 
         CaloHitVector inputAvailableHits(iter->second->begin(), iter->second->end());
@@ -136,7 +148,7 @@ StatusCode TrackClusterCreationAlgorithm::AddFilteredCaloHits(
                     continue;
 
                 const CaloHit *pClosestHit = NULL;
-                float closestSeparationSquared(m_minCaloHitSeparationSquared);
+                float closestSeparationSquared(minSeparationSquaredAdjusted);
 
                 for (const CaloHit *const pCaloHitJ : clusteredHits)
                 {
@@ -318,9 +330,13 @@ void TrackClusterCreationAlgorithm::CreateClusters(
 void TrackClusterCreationAlgorithm::CreatePrimaryAssociation(const CaloHit *const pCaloHitI, const CaloHit *const pCaloHitJ,
     HitAssociationMap &forwardHitAssociationMap, HitAssociationMap &backwardHitAssociationMap) const
 {
+    HitType view{pCaloHitI->GetHitType()};
+    const float ratio{LArGeometryHelper::GetWirePitchRatio(this->GetPandora(), view)};
+    const float maxSeparationSquaredAdjusted{ratio * ratio * m_maxCaloHitSeparationSquared};
+
     const float distanceSquared((pCaloHitJ->GetPositionVector() - pCaloHitI->GetPositionVector()).GetMagnitudeSquared());
 
-    if (distanceSquared > m_maxCaloHitSeparationSquared)
+    if (distanceSquared > maxSeparationSquaredAdjusted)
         return;
 
     HitAssociationMap::iterator forwardIter = forwardHitAssociationMap.find(pCaloHitI);
@@ -351,6 +367,10 @@ void TrackClusterCreationAlgorithm::CreatePrimaryAssociation(const CaloHit *cons
 void TrackClusterCreationAlgorithm::CreateSecondaryAssociation(const CaloHit *const pCaloHitI, const CaloHit *const pCaloHitJ,
     HitAssociationMap &forwardHitAssociationMap, HitAssociationMap &backwardHitAssociationMap) const
 {
+    HitType view{pCaloHitI->GetHitType()};
+    const float ratio{LArGeometryHelper::GetWirePitchRatio(this->GetPandora(), view)};
+    const float closeSeparationSquaredAdjusted{ratio * ratio * m_closeSeparationSquared};
+
     HitAssociationMap::iterator forwardIter = forwardHitAssociationMap.find(pCaloHitI);
     HitAssociationMap::iterator backwardIter = backwardHitAssociationMap.find(pCaloHitJ);
 
@@ -363,7 +383,7 @@ void TrackClusterCreationAlgorithm::CreateSecondaryAssociation(const CaloHit *co
     if ((forwardAssociation.GetPrimaryTarget() != pCaloHitJ) && (backwardAssociation.GetPrimaryTarget() == pCaloHitI))
     {
         if ((backwardAssociation.GetPrimaryDistanceSquared() < forwardAssociation.GetSecondaryDistanceSquared()) &&
-            (backwardAssociation.GetPrimaryDistanceSquared() < m_closeSeparationSquared))
+            (backwardAssociation.GetPrimaryDistanceSquared() < closeSeparationSquaredAdjusted))
         {
             forwardAssociation.SetSecondaryTarget(pCaloHitJ, backwardAssociation.GetPrimaryDistanceSquared());
         }
@@ -372,7 +392,7 @@ void TrackClusterCreationAlgorithm::CreateSecondaryAssociation(const CaloHit *co
     if ((backwardAssociation.GetPrimaryTarget() != pCaloHitI) && (forwardAssociation.GetPrimaryTarget() == pCaloHitJ))
     {
         if ((forwardAssociation.GetPrimaryDistanceSquared() < backwardAssociation.GetSecondaryDistanceSquared()) &&
-            (forwardAssociation.GetPrimaryDistanceSquared() < m_closeSeparationSquared))
+            (forwardAssociation.GetPrimaryDistanceSquared() < closeSeparationSquaredAdjusted))
         {
             backwardAssociation.SetSecondaryTarget(pCaloHitI, forwardAssociation.GetPrimaryDistanceSquared());
         }
@@ -458,6 +478,8 @@ StatusCode TrackClusterCreationAlgorithm::ReadSettings(const TiXmlHandle xmlHand
     float closeSeparation = std::sqrt(m_closeSeparationSquared);
     PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "CloseSeparation", closeSeparation));
     m_closeSeparationSquared = closeSeparation * closeSeparation;
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "MinMipFraction", m_minMipFraction));
 
     return STATUS_CODE_SUCCESS;
 }
