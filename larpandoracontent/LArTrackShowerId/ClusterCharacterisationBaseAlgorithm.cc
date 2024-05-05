@@ -21,7 +21,8 @@ namespace lar_content
 ClusterCharacterisationBaseAlgorithm::ClusterCharacterisationBaseAlgorithm() :
     m_zeroMode(false),
     m_overwriteExistingId(false),
-    m_useUnavailableClusters(false)
+    m_useUnavailableClusters(false),
+    m_forceTracks(false)
 {
 }
 
@@ -40,6 +41,8 @@ StatusCode ClusterCharacterisationBaseAlgorithm::Run()
         const ClusterList *pClusterList = NULL;
         PANDORA_RETURN_RESULT_IF_AND_IF(
             STATUS_CODE_SUCCESS, STATUS_CODE_NOT_INITIALIZED, !=, PandoraContentApi::GetList(*this, clusterListName, pClusterList));
+
+        std::cout<<" FRAN IS HERE! forcingTracks: "<<m_forceTracks<<std::endl;
 
         if (!pClusterList || pClusterList->empty())
         {
@@ -80,6 +83,11 @@ StatusCode ClusterCharacterisationBaseAlgorithm::Run()
                 metadata.m_particleId = E_MINUS;
             }
 
+            if(m_forceTracks)
+            {
+                metadata.m_particleId = MU_MINUS;
+            }
+
             if (pCluster->GetParticleId() != metadata.m_particleId.Get())
                 PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, PandoraContentApi::Cluster::AlterMetadata(*this, pCluster, metadata));
         }
@@ -101,6 +109,9 @@ StatusCode ClusterCharacterisationBaseAlgorithm::ReadSettings(const TiXmlHandle 
 
     PANDORA_RETURN_RESULT_IF_AND_IF(
         STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseUnavailableClusters", m_useUnavailableClusters));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(
+        STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ForceTracks", m_forceTracks));
 
     return STATUS_CODE_SUCCESS;
 }

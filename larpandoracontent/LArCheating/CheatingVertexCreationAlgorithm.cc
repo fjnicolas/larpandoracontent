@@ -33,7 +33,33 @@ StatusCode CheatingVertexCreationAlgorithm::Run()
     std::string temporaryListName;
     PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, PandoraContentApi::CreateTemporaryListAndSetCurrent(*this, pVertexList, temporaryListName));
 
+    std::cout << " FRAN IS IN CHEATING CLASS! "<<std::endl;
+    std::cout << " Number of MCParticles: "<<pMCParticleList->size()<<std::endl;
+
+    bool foundNeutrino = false;
     for (const MCParticle *const pMCParticle : *pMCParticleList)
+    {
+        std::cout << " MCParticle PDG: "<<pMCParticle->GetParticleId()<<std::endl;
+        std::cout<<pMCParticle->GetEndpoint().GetX()<<" "<<pMCParticle->GetEndpoint().GetY()<<" "<<pMCParticle->GetEndpoint().GetZ()<<std::endl;
+
+        if( foundNeutrino ) continue;
+        // if neutrino, continue
+        if( std::abs(pMCParticle->GetParticleId()) == 12 || std::abs(pMCParticle->GetParticleId()) == 14 || std::abs(pMCParticle->GetParticleId()) == 16 )  continue;
+       
+        PandoraContentApi::Vertex::Parameters parameters;
+        parameters.m_position = CartesianVector(
+            pMCParticle->GetEndpoint().GetX() + m_vertexXCorrection, pMCParticle->GetEndpoint().GetY(), pMCParticle->GetEndpoint().GetZ());
+        parameters.m_vertexLabel = VERTEX_INTERACTION;
+        parameters.m_vertexType = VERTEX_3D;
+
+        const Vertex *pVertex(nullptr);
+        PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, PandoraContentApi::Vertex::Create(*this, parameters, pVertex));
+
+        foundNeutrino = true;
+    }
+
+
+    /*for (const MCParticle *const pMCParticle : *pMCParticleList)
     {
         if (!LArMCParticleHelper::IsNeutrino(pMCParticle))
             continue;
@@ -46,7 +72,7 @@ StatusCode CheatingVertexCreationAlgorithm::Run()
 
         const Vertex *pVertex(nullptr);
         PANDORA_RETURN_RESULT_IF(STATUS_CODE_SUCCESS, !=, PandoraContentApi::Vertex::Create(*this, parameters, pVertex));
-    }
+    }*/
 
     if (!pVertexList->empty())
     {

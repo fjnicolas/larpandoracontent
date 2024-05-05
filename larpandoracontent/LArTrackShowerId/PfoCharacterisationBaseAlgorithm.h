@@ -69,6 +69,8 @@ protected:
     bool m_postBranchAddition;        ///< Whether to use configuration for shower clusters post branch addition
     bool m_useThreeDInformation;      ///< Whether to use PFO and 3D information or clusters for characterisation
     unsigned int m_minTrackLikeViews; ///< The minimum number of track-like views to declare a pfo as track-like
+
+    bool m_forceTracks; ///< Whether to force clusters to be identified as tracks
 };
 
 } // namespace lar_content

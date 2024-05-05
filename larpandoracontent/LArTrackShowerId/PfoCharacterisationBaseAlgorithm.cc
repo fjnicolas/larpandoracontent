@@ -24,7 +24,8 @@ PfoCharacterisationBaseAlgorithm::PfoCharacterisationBaseAlgorithm() :
     m_updateClusterIds(true),
     m_postBranchAddition(false),
     m_useThreeDInformation(true),
-    m_minTrackLikeViews(2)
+    m_minTrackLikeViews(2),
+    m_forceTracks(false)
 {
 }
 
@@ -39,6 +40,8 @@ PfoCharacterisationBaseAlgorithm::~PfoCharacterisationBaseAlgorithm()
 StatusCode PfoCharacterisationBaseAlgorithm::Run()
 {
     PfoList tracksToShowers, showersToTracks;
+
+    std::cout<<" FRAN IS IN PFO TOO! forcingTracks: "<<m_forceTracks<<std::endl;
 
     for (const std::string &pfoListName : m_inputPfoListNames)
     {
@@ -61,6 +64,7 @@ StatusCode PfoCharacterisationBaseAlgorithm::Run()
             if (isTrackLike)
             {
                 pfoMetadata.m_particleId = MU_MINUS;
+                if(m_forceTracks) pfoMetadata.m_particleId = MU_MINUS;
 
                 if (m_showerPfoListName == pfoListName)
                     showersToTracks.push_back(pPfo);
@@ -68,6 +72,7 @@ StatusCode PfoCharacterisationBaseAlgorithm::Run()
             else
             {
                 pfoMetadata.m_particleId = E_MINUS;
+                if(m_forceTracks) pfoMetadata.m_particleId = MU_MINUS;
 
                 if (m_trackPfoListName == pfoListName)
                     tracksToShowers.push_back(pPfo);
@@ -148,6 +153,9 @@ StatusCode PfoCharacterisationBaseAlgorithm::ReadSettings(const TiXmlHandle xmlH
 
     PANDORA_RETURN_RESULT_IF_AND_IF(
         STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "UseThreeDInformation", m_useThreeDInformation));
+
+    PANDORA_RETURN_RESULT_IF_AND_IF(
+        STATUS_CODE_SUCCESS, STATUS_CODE_NOT_FOUND, !=, XmlHelper::ReadValue(xmlHandle, "ForceTracks", m_forceTracks));
 
     return STATUS_CODE_SUCCESS;
 }

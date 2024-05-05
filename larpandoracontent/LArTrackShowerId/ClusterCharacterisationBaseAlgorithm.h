@@ -48,6 +48,8 @@ protected:
 
     bool m_overwriteExistingId;    ///< Whether to consider any clusters that already have an assigned particle id
     bool m_useUnavailableClusters; ///< Whether to consider clusters that are already constituents of a pfo
+
+    bool m_forceTracks; ///< Whether to force clusters to be identified as tracks
 };
 
 } // namespace lar_content
